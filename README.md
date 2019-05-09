@@ -40,3 +40,5 @@ Examples of the EELS mapping analysis based on Map Class:
 4: Summming over all the pixels.  
 
 Any feedback is welcome. Please let me know if you have any questions on bugs or any suggestions to expand the functionality.
+
+If you like TeXt, don’t forget to give me a star.
