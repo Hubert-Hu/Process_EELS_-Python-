@@ -26,13 +26,13 @@ Examples of the basic functions based on Line Class:
 5: denoise_LLR  
 6: find_peak
 
-1. **'Process_EELS_Lines.ipynb'**  
+2. **'Process_EELS_Lines.ipynb'**  
 Examples of the further analysis based on Lines Class:  
 1: Plot multiple lines.  
 2: Validation test of the manual background subtraction by finding peaks.  
 3: Background subtraction by raw and subtrate data. 
 
-1. **'Process_EELS_Map.ipynb'**  
+3. **'Process_EELS_Map.ipynb'**  
 Examples of the EELS mapping analysis based on Map Class:  
 1: Initial process (align, and normalize).  
 2: Slice display.  
