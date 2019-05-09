@@ -1,10 +1,13 @@
 import matplotlib.pylab as plt
+import matplotlib.gridspec as gridspec
 import numpy as np
+import scipy as sp
 from scipy.signal import find_peaks
 from scipy.interpolate import UnivariateSpline
 from scipy.integrate import quad
 from copy import deepcopy
 from sklearn.decomposition import NMF, PCA
+
 
 class Line:
 
@@ -26,8 +29,13 @@ class Line:
         d2 = [self.data[1][i] for i, x in enumerate(self.data[0]) if x >= min(xrange) and x <= max(xrange)]
         return [np.array(d1), np.array(d2)]
 
-    def plot(self):
-        plt.plot(self.data[0], self.data[1])
+    def plot(self, color=''):
+        if color:
+            plt.plot(self.data[0], self.data[1], label=self.name, color=color)
+        else:
+            plt.plot(self.data[0], self.data[1], label=self.name)
+        plt.xlabel('Energy loss (eV)')
+        plt.ylabel('Counts')
 
     def yshift_data(self, yshift):
         """
@@ -47,11 +55,17 @@ class Line:
         y_func = UnivariateSpline(data[0], data[1], s=s0, k=k0)
         return y_func
 
-    def get_linspace(self, xrange, num=5000, step=0):
+    def get_HWHM(self):
+        half_max = max(self.data[1]) / 2.
+        d = self.data[1] - half_max
+        indx = np.where(d > 0)
+        return abs(self.data[0][indx][-1] - self.data[0][indx][0])
+
+    def get_linspace(self, xrange, num=2000, step=0):
         """
         Get linspace data by setting number of points or step, for constructing x values.
         If both are set, consider step first.
-        Default num = 5000.
+        Default num = 2000.
         """
         if step > 0:
             num_points = (max(xrange) - min(xrange)) / step + 1
@@ -59,25 +73,32 @@ class Line:
         if num > 0:
             return np.linspace(min(xrange), max(xrange), num)
 
-    def find_zlp_max(self, zlp_xrange):
+    def find_zlp_max(self):
         """
         find the energy zero point by locating the maximum of zlp
-        zlp_xrange: the range in x-axis to find the peak of zlp.
         return: zlp position and height
         """
         y_spl = self.spline(self.data)
-        x_zlp = self.get_linspace(zlp_xrange)  # or we can set step
+        # get a rough estimate of ZLP position
+        test_xrange = [min(self.data[0]), max(self.data[0])]
+        x_zlp = self.get_linspace(test_xrange)  # or we can set step
+        test_shift = x_zlp[np.argmax(y_spl(x_zlp))]
+        width = self.get_HWHM()
+
+        # narrow down the region to the area nearby ZLP with 3 sigma away.
+        num_sigma = 3
+        zlp_xrange = [test_shift - width/2 * num_sigma, test_shift + width/2 * num_sigma]
+        x_zlp = self.get_linspace(zlp_xrange)
         shift, height = x_zlp[np.argmax(y_spl(x_zlp))], max(y_spl(x_zlp))
         self.height = height  # update height after aligning
         return shift, height
 
-    def align(self, zlp_xrange):
+    def align(self):
         """
         Align the line by setting center of ZLP to zero.
         Use spline function to avoid subpixel misalignment.
-        zlp_xrange: the range in x-axis to find the peak of zlp.
         """
-        shift, height = self.find_zlp_max(zlp_xrange)
+        shift, height = self.find_zlp_max()
         # print('ZLP position: {}'.format(shift))
         y_spl = self.spline(self.data)
         self.data = [self.data[0], y_spl(self.data[0] + shift)]  # Positive zlp shift means a red shift
@@ -96,26 +117,42 @@ class Line:
         result = quad(y_spl, min(xrange), max(xrange))
         return result[0]
 
-    def find_peak(self, xrange, display_peaks=False):
+    def find_peak(self, xrange, config_find_peak):
         """
-        vis_xrange: an array of two numbers, showing the lower and upper limit of region of interets.
-        method: a string, showing the method to find peaks.
+        xrange: a range in x-axis to find the peaks.
+        Cannot include ZLP due to denoising.
+        Even better after ZLP extraction.
+        config_find_peak: a dict, containing parameters to tune for finding peaks.
         """
+        self.data = self.slice_data(xrange)
         x, sm_y = self.denoise_LLR(0.02)
         y_spl = self.spline([x, sm_y])
         x_line = self.get_linspace(xrange)  # or we can set step
-        peaks, dic = find_peaks(y_spl(x_line), height=0, distance=100)
+        peaks, dic = sp.signal.find_peaks(y_spl(x_line),
+                                          height=min(y_spl(x_line)),
+                                          distance=len(x_line)/100)
+        config = {'height': min(y_spl(x_line)),
+                  'distance': 1 / 100,
+                  'prominence': 1 / 10000,
+                  'display_peaks': False,
+                  }
+        config.update(config_find_peak)
         if len(peaks):
-            peaks, dic = find_peaks(y_spl(x_line), height=0, distance=100, prominence=max(dic['peak_heights']) / 100)
-        if display_peaks:
+            peaks, dic = sp.signal.find_peaks(y_spl(x_line),
+                                              height=config['height'],
+                                              distance=len(x_line) * config['distance'],
+                                              prominence=max(dic['peak_heights']) * config['prominence'])
+        if config['display_peaks']:
             plt.figure()
             plt.plot(x_line, y_spl(x_line))
             plt.plot(x_line[peaks], y_spl(x_line)[peaks], 'xr')
+            plt.title('Peak finding')
         return x_line[peaks], dic['peak_heights']
 
     def denoise_LLR(self, dE=0.02, ncomp=1):
         """
-        Denoise data by PCA reconstruction
+        Denoise data by PCA reconstruction.
+        Cannot include ZLP in the data.
         dE: a number, showing the energy window of one block.
         ncomp: a number, showing the number of the components.
         """
@@ -124,8 +161,8 @@ class Line:
         nx = int(np.floor(dE / myscale))
         if nx % 2 == 0:
             nx = nx + 1
-        print('Smooth by PCA.')
-        print('Setting dE block: {} ev. Real dE: {} eV'.format(dE, nx * myscale))
+        # print('Smooth by PCA.')
+        # print('Setting dE block: {} ev. Real dE: {} eV'.format(dE, nx * myscale))
 
         # Creating the blocks
         num_block = len(self.data[1]) - nx + 1
@@ -189,35 +226,44 @@ class Lines:
         for i, e in enumerate(self.elements):
             self.elements[i].data = e.slice_data(xrange)
 
-    def align(self, zlp_xrange):
+    def align(self):
         """
         Align each element in elements.
         Since aligning will resize the data from each element, we slice all the aligned data into same size.
         This function assumes that the original x-values for all the lines are the same.
-        zlp_xrange: the range in xaxis to find the peak of zlp.
         """
         xmin_list = []
         xmax_list = []
-        for i, e in enumerate(self.elements):
-            self.elements[i].data = e.align(zlp_xrange)
-            xmin_list.append(min(self.elements[i].data[0]))
-            xmax_list.append(max(self.elements[i].data[0]))
+        for e in self.elements:
+            xmin_list.append(min(e.data[0]))
+            xmax_list.append(max(e.data[0]))
+            e.data = e.align()
             self.heights.append(e.height)  # save height of each element in self.heights for further normalization.
         xrange = [max(xmin_list), min(xmax_list)]
-        for i, e in enumerate(self.elements):
-            self.elements[i].data = e.slice_data([max(xmin_list), xrange])
+        for e in self.elements:
+            e.data = e.slice_data([max(xmin_list), xrange])
 
     def normalize(self):
         """
-        Normalize the lines by setting the height of heighest zlp as 1.
+        Normalize the lines by setting the height of each ZLP to 1.
         Align data before normalization to get the height data.
         """
-        if self.heights:
-            max_height = max(self.heights)
-            for i, e in enumerate(self.elements):
-                self.elements[i].data[1] = e.data[1] / max_height
-        else:
-            print('Error: there is no height list. Please align data first to get the list of heights.')
+        for e in self.elements:
+            e.data[1] = e.data[1] / e.height
+
+    def initial_process(self, display):
+        """
+        Initial processing, includes alignment, normalization.
+        :param display: True or False, display processed ZLP or not.
+        """
+        self.align()
+        self.normalize()
+        if display:
+            plt.figure()
+            for e in self.elements:
+                plt.plot(e.data[0], e.data[1])
+            width = self.elements[0].HWHM()
+            plt.xlim([-width / 2 * 3, width / 2 * 3])
 
     def PCA(self, num_comps=6):
         """
@@ -278,7 +324,8 @@ class Lines:
 
         All the lists should be in the same size.
         """
-        config = {'xrange': [0, 2],
+        config = {'figure_size' : [8,4],
+                  'xrange': [0, 2],
                   'yshift_list': [0] * len(self.elements),
                   'label_list': ['_nolegend_'] * len(self.elements),
                   'color_list': ['b'] * len(self.elements),
@@ -306,7 +353,7 @@ class Lines:
             ymin_list.append(min(new_data[1]) + shift)
 
         # set parameters for the figure.
-        plt.xlim(self.config['xrange'])
+        plt.xlim(config['xrange'])
         ymax = max(ymax_list)
         ymin = min(ymin_list)
         plt.ylim([ymin * 1.1, ymax * 1.1])
@@ -316,17 +363,17 @@ class Lines:
         plt.tick_params(
             axis='both',  # changes apply to the x-axis and y-axis
             which='both',  # both major and minor ticks are affected
-            labelsize=self.config['tick_fontsize'])
+            labelsize=config['tick_fontsize'])
         plt.legend(fontsize=config['legend_fontsize'], loc=1)
 
-    def find_peak(self, xrange):
+    def find_peak(self, xrange, config_find_peak):
         """
         Find peaks for each line.
         """
         self.peak_positions = []
         self.peak_heights = []
         for e in self.elements:
-            peak, height = e.find_peak(xrange, display_peak=False)
+            peak, height = e.find_peak(xrange, config_find_peak)
             print('Peak positions for {}: {}'.format(e.name, peak))
             print('Height {}: {}'.format(e.name, height))
             self.peak_positions.append(peak)
@@ -345,25 +392,38 @@ class Lines:
             print('The number of substrate line is not either 1, or same as the number of lines.')
             return []
 
-        zlp_xrange = [min(sub[0].data[0]), max(sub[0].data[0])]
-        new_elements = []
         for i, e in enumerate(self.elements):
             # get spline function for sub-pixel alignment & find ZLP position of substrate line
-            y_sub = sub[i].spline(sub[i].data)
-            shift0, height0 = sub[i].find_zlp_max(zlp_xrange)
+            y_sub = subs[i].spline(subs[i].data)
+            shift0, height0 = subs[i].find_zlp_max()
             # get spline function for sub-pixel alignment & find ZLP position of each line
             y_data = e.spline(e.data)
-            shift1, height1 = e.find_zlp_max(zlp_xrange)
+            shift1, height1 = e.find_zlp_max()
+
             x_data = e.get_linspace(display_range)
+            y_data_sample = y_data(x_data + shift1) / height1
+            y_sub_sample = y_sub(x_data + shift0) / height0
             # subtract the substrate signal from each line. Normalize each line by setting ZLP height as 1.
-            e.data = [x_data, y_data(x_data + shift1) / height1 - y_sub(x_data + shift0) / height0]
-            new_elements.append(e)
+            width = e.get_HWHM() # get zlp HWHM before updating
+            e.data = [x_data, y_data_sample - y_sub_sample] # update element
+            e.name = e.name + ' Subtracted'
             if display_sub:
+                # plot ZLP to check alignment.
                 plt.figure()
-                plt.plot(x_data, y_data(x_data + shift1) / height1, label='Raw Data')
-                plt.plot(x_data, y_sub(x_data + shift0) / height0, label='sub Data')
+                zlp_width = width / 2 * 3
+                x_zlp = e.get_linspace([shift1 - zlp_width, shift1 + zlp_width])
+                plt.plot(x_zlp, y_data(x_zlp + shift1) / height1, label='Raw Data')
+                plt.plot(x_zlp, y_sub(x_zlp + shift0) / height0, label='Sub Data')
+                plt.title('ZLP alignment')
                 plt.legend()
-        return new_elements
+
+                # plot display area for a comparison
+                plt.figure()
+                plt.plot(x_data, y_data_sample, label='Raw Data')
+                plt.plot(x_data, y_sub_sample, label='Sub Data')
+                plt.plot(x_data, e.data[1], label='Extracted Data')
+                plt.title('ZLP Extraction')
+                plt.legend()
 
 
 class Mapping(Lines):
@@ -400,11 +460,11 @@ class Mapping(Lines):
             newsp_y = newsp_y + e.data[1]
         return [newsp_x, newsp_y]
 
-    def coord_to_row(self, select):
+    def coord_to_ind(self, select):
         return select[0] * self.pixel_num_y + select[1]
 
     def select_sum_by_list(self, select_list):
-        index = self.coord_to_row(select_list[0])
+        index = self.coord_to_ind(select_list[0])
         newsp_x = self.elements[index].data[0]
         newsp_y = 0 * self.elements[index].data[1]
         for s in select_list:
@@ -413,21 +473,22 @@ class Mapping(Lines):
         newsp_y = newsp_y / len(select_list)
         return [newsp_x, newsp_y]
 
-    def initial_process(self):
+    def normalize_map(self):
         """
-        Process data in the order of alignment and normalization.
+        Normalize the lines by setting the height of heighest zlp to 1.
+        Align data before normalization to get the height data.
         """
-        xdata = self.elements[0].data[0]
-        zlp_xrange = [min(xdata), max(xdata)]
-        self.align(zlp_xrange)
-        self.normalize()
-        self.xdata = self.elements[0].data[0]
+        if self.heights:
+            max_height = max(self.heights)
+            for i, e in enumerate(self.elements):
+                self.elements[i].data[1] = e.data[1] / max_height
+        else:
+            print('Error: there is no height list. Please align data first to get the list of heights.')
 
     def PCA_plot(self, file_prefix=''):
         """
         Plot each components and corresponding coefficient mapping.
         """
-        import matplotlib.gridspec as gridspec
         for i in range(self.PCA_ncomps):
             self.PCA_coefficients[i] = np.reshape(self.PCA_coefficients[i], [self.pixel_num_x, self.pixel_num_y])
             plt.figure(figsize=[8, 3])
