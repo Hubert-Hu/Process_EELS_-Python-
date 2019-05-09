@@ -52,5 +52,9 @@ If you like it, don’t forget to give it a star.
 >>>>>>> a7ff694... Update README.md
 =======
 
+<<<<<<< HEAD
 If you like TeXt, don’t forget to give me a star.
 >>>>>>> f1731f3... Update README.md
+=======
+If you like it, don’t forget to give it a star.
+>>>>>>> dbc2caa... Update README.md
