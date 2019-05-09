@@ -25,8 +25,13 @@ class Line:
         """
         Slice the data into desired range in x-axis.
         """
-        d1 = [x for x in self.data[0] if x >= min(xrange) and x <= max(xrange)]
-        d2 = [self.data[1][i] for i, x in enumerate(self.data[0]) if x >= min(xrange) and x <= max(xrange)]
+        try:
+            d1 = [x for x in self.data[0] if x >= min(xrange) and x <= max(xrange)]
+            d2 = [self.data[1][i] for i, x in enumerate(self.data[0]) if x >= min(xrange) and x <= max(xrange)]
+        except:
+            print('Error during slice data !!!')
+            print('x-values: {}'.format(self.data[0]))
+            print('Select range: {}'.format(xrange))
         return [np.array(d1), np.array(d2)]
 
     def plot(self, color=''):
@@ -103,7 +108,8 @@ class Line:
         y_spl = self.spline(self.data)
         self.data = [self.data[0], y_spl(self.data[0] + shift)]  # Positive zlp shift means a red shift
 
-        # Slice the data since the data between [max(self.data[0])-shift, max(self.data[0])] in x-axis are invalid.
+        # Slice the data since the data between [max(self.data[0])-shift, max(self.data[0])] in x-axis are invalid,
+        # due to the range of spline interpolation.
         ### Pay attention here, aligning the line data will change the length of x or y data.
         self.data = self.slice_data([min(self.data[0]), max(self.data[0]) - shift])
         return self.data
@@ -235,13 +241,13 @@ class Lines:
         xmin_list = []
         xmax_list = []
         for e in self.elements:
+            e.data = e.align()
             xmin_list.append(min(e.data[0]))
             xmax_list.append(max(e.data[0]))
-            e.data = e.align()
             self.heights.append(e.height)  # save height of each element in self.heights for further normalization.
         xrange = [max(xmin_list), min(xmax_list)]
         for e in self.elements:
-            e.data = e.slice_data([max(xmin_list), xrange])
+            e.data = e.slice_data(xrange)
 
     def normalize(self):
         """
@@ -302,6 +308,7 @@ class Lines:
         """
         Display the integrals under each line in the slice range.
         xrange: [lower_limit, higher_limit], showing the slice range in x-axis.
+        return: a list, each element is an integral for each line in xrange.
         """
         int_list = []
         for e in self.elements:
@@ -468,7 +475,7 @@ class Mapping(Lines):
         newsp_x = self.elements[index].data[0]
         newsp_y = 0 * self.elements[index].data[1]
         for s in select_list:
-            index = self.coord_to_row(s)
+            index = self.coord_to_ind(s)
             newsp_y = newsp_y + self.elements[index].data[1]
         newsp_y = newsp_y / len(select_list)
         return [newsp_x, newsp_y]
@@ -498,5 +505,6 @@ class Mapping(Lines):
             plt.subplot(gs[1])
             plt.plot(self.PCA_components[i][0], self.PCA_components[i][1])
             plt.xlabel('Energy Loss (eV)')
+            plt.title('PCA_#{}'.format(i))
             plt.tight_layout()
             plt.savefig(file_prefix + 'PCA_#{}.png'.format(i), bbox_inches='tight')
