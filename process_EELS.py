@@ -17,8 +17,8 @@ class Line:
         name: a string, used to label the name in the plotting.
         height: a number, the max height of zlp.
         """
-        self.data = deepcopy(data)
-        self.name = deepcopy(name)
+        self.data = data
+        self.name = name
         self.height = 0
 
     def slice_data(self, xrange):
@@ -201,7 +201,7 @@ class Lines:
         """
         elements: a list of Line objects.
         """
-        self.elements = deepcopy(elements)
+        self.elements = elements
         self.heights = []
         self.PCA_coefficients = []
         self.PCA_components = []
@@ -210,7 +210,7 @@ class Lines:
         """
         We can update initial elements by set_initial_elements.
         """
-        self.elements = deepcopy(ele)
+        self.elements = ele
 
     def add_lines(self, new_lines):
         for new_line in new_lines:
@@ -256,14 +256,6 @@ class Lines:
         """
         for e in self.elements:
             e.data[1] = e.data[1] / e.height
-
-    def denoise_LLR(self):
-        new_elements = []
-        for e in self.elements:
-            new_e = deepcopy(e)
-            new_e.data = new_e.denoise_LLR()
-            new_elements.append(new_e)
-        return new_elements
 
     def initial_process(self, display):
         """
@@ -339,7 +331,8 @@ class Lines:
 
         All the lists should be in the same size.
         """
-        config = {'xrange': [0, 2],
+        config = {'figure_size' : [8,4],
+                  'xrange': [0, 2],
                   'yshift_list': [0] * len(self.elements),
                   'label_list': ['_nolegend_'] * len(self.elements),
                   'color_list': ['b'] * len(self.elements),
@@ -347,26 +340,21 @@ class Lines:
                   'tick_fontsize': 20,
                   'legend_fontsize': 20,
                   'line_width': 3,
-                  'line_style': '-',
-                  'marker': '',
-                  'marker_size': 1
                   }
         config.update(config_dic)
 
         # plot in a selected range of x-axis.
+        plt.figure(figsize=config['figure_size'])
         ymax_list = []
         ymin_list = []
         for num, line in enumerate(self.elements):
             # shift data in y-xaxis & slice data in a selected range for a better display
-            shift = config['yshift_list'][num]
+            shift = config['yshift_list'][num] * max(self.elements[0].data[1])
             new_data = line.slice_data(config['xrange'])
             plt.plot(new_data[0], new_data[1] + shift,
                      label=config['label_list'][num],
                      color=config['color_list'][num],
-                     linewidth=config['line_width'],
-                     linestyle=config['line_style'],
-                     marker=config['marker'],
-                     markersize=config['marker_size'])
+                     linewidth=config['line_width'])
             # save ymax and ymin of each line for further adjustment of y-limit.
             ymax_list.append(max(new_data[1]) + shift)
             ymin_list.append(min(new_data[1]) + shift)
@@ -456,8 +444,8 @@ class Mapping(Lines):
 
         """
         if len(ydata.shape) == 3:
-            self.xdata = deepcopy(xdata)
-            self.ydata = deepcopy(ydata)
+            self.xdata = xdata
+            self.ydata = ydata
             self.pixel_num_x = ydata.shape[0]
             self.pixel_num_y = ydata.shape[1]
             self.pixel_num_z = ydata.shape[2]
