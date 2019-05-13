@@ -32,7 +32,11 @@ Examples of the further analysis based on Lines Class:
 2: Validation test of the manual background subtraction by finding peaks.  
 3: Background subtraction by raw and subtrate data. 
 
+<<<<<<< HEAD
 3. **'Process_EELS_Map.ipynb'**  
+=======
+1. **'Process_EELS_Map.ipynb'**  
+>>>>>>> a7ff694... Update README.md
 Examples of the EELS mapping analysis based on Map Class:  
 1: Initial process (align, and normalize).  
 2: Slice display.  
@@ -40,5 +44,8 @@ Examples of the EELS mapping analysis based on Map Class:
 4: Summming over all the pixels.  
 
 Any feedback is welcome. Please let me know if you have any questions on bugs or any suggestions to expand the functionality.
+<<<<<<< HEAD
 
 If you like it, don’t forget to give it a star.
+=======
+>>>>>>> a7ff694... Update README.md
