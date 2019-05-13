@@ -9,7 +9,7 @@ Main function: **slice, plot, find_zlp, align, yshift, spline, integrate, find_p
 
 2. **Lines**.  
 The instance of the class is an object describing a list of EELS lines.  
-Main function: **add, delete, slice, slice_display, align, normalize, PCA, make_plot, find_peak, subtract background signals**.
+Main function: **add, delete, slice, slice_display, align, normalize, denoise_LLR, PCA, make_plot, find_peak, subtract background signals**.
 
 3. **Map**.  
 The Child Class of **Lines**.  
@@ -32,11 +32,7 @@ Examples of the further analysis based on Lines Class:
 2: Validation test of the manual background subtraction by finding peaks.  
 3: Background subtraction by raw and subtrate data. 
 
-<<<<<<< HEAD
 3. **'Process_EELS_Map.ipynb'**  
-=======
-1. **'Process_EELS_Map.ipynb'**  
->>>>>>> a7ff694... Update README.md
 Examples of the EELS mapping analysis based on Map Class:  
 1: Initial process (align, and normalize).  
 2: Slice display.  
@@ -44,17 +40,5 @@ Examples of the EELS mapping analysis based on Map Class:
 4: Summming over all the pixels.  
 
 Any feedback is welcome. Please let me know if you have any questions on bugs or any suggestions to expand the functionality.
-<<<<<<< HEAD
-<<<<<<< HEAD
 
 If you like it, don’t forget to give it a star.
-=======
->>>>>>> a7ff694... Update README.md
-=======
-
-<<<<<<< HEAD
-If you like TeXt, don’t forget to give me a star.
->>>>>>> f1731f3... Update README.md
-=======
-If you like it, don’t forget to give it a star.
->>>>>>> dbc2caa... Update README.md
