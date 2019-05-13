@@ -45,7 +45,12 @@ Examples of the EELS mapping analysis based on Map Class:
 
 Any feedback is welcome. Please let me know if you have any questions on bugs or any suggestions to expand the functionality.
 <<<<<<< HEAD
+<<<<<<< HEAD
 
 If you like it, don’t forget to give it a star.
 =======
 >>>>>>> a7ff694... Update README.md
+=======
+
+If you like TeXt, don’t forget to give me a star.
+>>>>>>> f1731f3... Update README.md
